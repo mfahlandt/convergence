@@ -99,3 +99,51 @@ func TestFromConfigAndStarterRoundTrip(t *testing.T) {
 		t.Fatalf("starter: %v %v", err, o)
 	}
 }
+
+func TestPinballBlock(t *testing.T) {
+	good := []byte("copilot:\n  claude-haiku-5.5: x\npinball:\n  thresholds: {standard: 2}\n  scoring: {tools: 0, long_chars: 100}\n")
+	if _, err := ParseOverrides(good); err != nil {
+		t.Fatal(err)
+	}
+	p, err := ParsePinball(good)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _ := Resolve(config.ProviderCopilot, nil)
+	if err := r.ApplyPinball(p); err != nil {
+		t.Fatal(err)
+	}
+	if r.Thresholds.Standard != 2 || r.Thresholds.Heavy != 3 || r.Scoring["tools"] != 0 {
+		t.Errorf("not applied: %+v %v", r.Thresholds, r.Scoring)
+	}
+	if got := strings.Join(r.ScoringLines(), ","); got != "long_chars: 100,tools: 0" {
+		t.Errorf("lines %q", got)
+	}
+	if p, err := ParsePinball([]byte("copilot: {}\n")); p != nil || err != nil {
+		t.Errorf("absent block: %v %v", p, err)
+	}
+	for name, y := range map[string]string{
+		"unknown scoring": "pinball:\n  scoring: {nope: 1}\n",
+		"unknown block":   "pinball:\n  extra: 1\n",
+		"unknown thresh":  "pinball:\n  thresholds: {light: 1}\n",
+		"typo":            "pinball:\n  scoring: {tools: x}\n",
+	} {
+		if _, err := ParsePinball([]byte(y)); err == nil {
+			t.Errorf("%s: want error", name)
+		}
+	}
+	for name, y := range map[string]string{
+		"order":     "pinball:\n  thresholds: {standard: 3}\n",
+		"long":      "pinball:\n  scoring: {very_long_chars: 100}\n",
+		"neg short": "pinball:\n  scoring: {short_chars: -1}\n",
+	} {
+		p, err := ParsePinball([]byte(y))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		r, _ := Resolve(config.ProviderCopilot, nil)
+		if r.ApplyPinball(p) == nil {
+			t.Errorf("%s: want error", name)
+		}
+	}
+}

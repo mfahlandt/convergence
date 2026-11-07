@@ -160,6 +160,12 @@ data:
     thresholds:
       standard: {{ .R.Thresholds.Standard }}
       heavy: {{ .R.Thresholds.Heavy }}
+{{- if .R.ScoringLines }}
+    scoring:
+{{- range .R.ScoringLines }}
+      {{ . }}
+{{- end }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment

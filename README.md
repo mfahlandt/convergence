@@ -140,6 +140,14 @@ ollama:
 
 Only `copilot`, `direct` and `ollama` are valid provider keys, and only the three pinball model names above are valid. An invalid file is an error. Re-run `convergence restart` after editing. For Ollama you can instead set tiers at init with `--ollama-model-light`, `--ollama-model-standard` and `--ollama-model-heavy`; `models.yaml` wins over those flags. In cluster mode pass the same file with `cluster install --models-file models.yaml`.
 
+Pinball's score cutoffs and per-signal points can be overridden in an optional top-level `pinball:` block of the same file (unset keys keep pinball's defaults; unknown keys are an error). Example: Pinball adds `+1` for requests with tools, which with the default `thresholds.standard: 1` puts every tool-using agent request in `standard`. To let short agent turns reach `light`:
+
+```yaml
+pinball:
+  thresholds: {standard: 2, heavy: 4}
+  scoring: {tools: 0}   # keys: code, heavy_keyword, max_heavy_keywords, light_keyword, long_chars, long, very_long_chars, very_long, short_chars, short, tools, effort_high, effort_low, small_output_tokens, small_output, structured
+```
+
 `convergence start` with the Ollama provider warns, with the `ollama pull` commands, when a mapped model isn't installed or Ollama can't be reached. `start --strict` turns that warning into a failure.
 
 #### How a prompt becomes a model

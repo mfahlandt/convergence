@@ -56,6 +56,7 @@ func RenderManifests(opts *ClusterOptions) (string, error) {
 	}
 
 	var override *models.Overrides
+	var pinball *models.Pinball
 	if opts.ModelsFile != "" {
 		raw, err := os.ReadFile(opts.ModelsFile)
 		if err != nil {
@@ -66,9 +67,15 @@ func RenderManifests(opts *ClusterOptions) (string, error) {
 			return "", err
 		}
 		override = &o
+		if pinball, err = models.ParsePinball(raw); err != nil {
+			return "", err
+		}
 	}
 	res, err := models.Resolve(config.ProviderType(opts.Provider), override)
 	if err != nil {
+		return "", err
+	}
+	if err := res.ApplyPinball(pinball); err != nil {
 		return "", err
 	}
 	data := newTemplateData(opts, res)

@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `models.yaml`: optional `pinball:` block (`thresholds`, `scoring`) overrides Pinball's score cutoffs and per-signal points, rendered into `pinball.yaml` (local and cluster ConfigMap). Defaults unchanged; unknown keys and invalid cutoff order are errors.
+
 ## [0.1.4] - 2026-11-06
 
 ### Changed

@@ -11,3 +11,9 @@ tiers:
 thresholds:
   standard: {{ .Models.Thresholds.Standard }}
   heavy: {{ .Models.Thresholds.Heavy }}
+{{- if .Models.ScoringLines }}
+scoring:
+{{- range .Models.ScoringLines }}
+  {{ . }}
+{{- end }}
+{{- end }}

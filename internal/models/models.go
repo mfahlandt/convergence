@@ -46,6 +46,8 @@ type Resolved struct {
 	Models     []Model // light, standard, heavy order
 	Tiers      map[Tier][]string
 	Thresholds Thresholds
+	// Scoring holds optional pinball scoring overrides (models.yaml `pinball.scoring`).
+	Scoring map[string]int
 	// Fallback is the PinballName used when pinball is unreachable.
 	Fallback string
 }

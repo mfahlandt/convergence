@@ -337,3 +337,24 @@ func TestCopilotAPIIdleTimeoutShim(t *testing.T) {
 		}
 	}
 }
+
+func TestModelsFilePinballOverride(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "m.yaml")
+	y := "pinball:\n  thresholds: {standard: 2, heavy: 5}\n  scoring: {tools: 0}\n"
+	if err := os.WriteFile(f, []byte(y), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := RenderManifests(&ClusterOptions{Namespace: "x", Provider: "copilot", ModelsFile: f})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"standard: 2", "heavy: 5", "scoring:\n      tools: 0"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	out, _ = RenderManifests(&ClusterOptions{Namespace: "x", Provider: "copilot"})
+	if strings.Contains(out, "scoring:") || !strings.Contains(out, "standard: 1") {
+		t.Error("defaults changed")
+	}
+}

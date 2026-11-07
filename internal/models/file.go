@@ -18,9 +18,18 @@ const FileName = "models.yaml"
 
 // ParseOverrides parses models.yaml content (strict: unknown shapes error).
 func ParseOverrides(data []byte) (Overrides, error) {
-	var o Overrides
-	if err := yaml.Unmarshal(data, &o); err != nil {
+	var raw map[string]yaml.Node
+	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parsing models.yaml: %w", err)
+	}
+	delete(raw, "pinball") // handled by ParsePinball
+	o := Overrides{}
+	for k, n := range raw {
+		var m map[string]string
+		if err := n.Decode(&m); err != nil {
+			return nil, fmt.Errorf("parsing models.yaml: %w", err)
+		}
+		o[k] = m
 	}
 	if err := validateOverrides(o); err != nil {
 		return nil, err
@@ -40,6 +49,17 @@ func LoadOverrides(dir string) (Overrides, error) {
 	return ParseOverrides(data)
 }
 
+func loadPinball(dir string) (*Pinball, error) {
+	data, err := os.ReadFile(filepath.Join(dir, FileName))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading models.yaml: %w", err)
+	}
+	return ParsePinball(data)
+}
+
 // ForConfig resolves the active mapping: defaults < config ollama flags < dir/models.yaml.
 func ForConfig(cfg *config.Config, dir string) (*Resolved, error) {
 	file, err := LoadOverrides(dir)
@@ -47,7 +67,15 @@ func ForConfig(cfg *config.Config, dir string) (*Resolved, error) {
 		return nil, err
 	}
 	o := Merge(OverridesFromConfig(cfg), file)
-	return Resolve(cfg.Provider, &o)
+	res, err := Resolve(cfg.Provider, &o)
+	if err != nil {
+		return nil, err
+	}
+	pb, err := loadPinball(dir)
+	if err != nil {
+		return nil, err
+	}
+	return res, res.ApplyPinball(pb)
 }
 
 // StarterFile returns a commented models.yaml showing every default.
