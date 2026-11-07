@@ -142,6 +142,8 @@ Only `copilot`, `direct` and `ollama` are valid provider keys, and only the thre
 
 `convergence start` with the Ollama provider warns, with the `ollama pull` commands, when a mapped model isn't installed or Ollama can't be reached. `start --strict` turns that warning into a failure.
 
+Responses to `auto`/`pinball` requests carry the pick as headers `x-pinball-model`, `x-pinball-tier` and `x-pinball-reason` (the body's `model` is the real upstream model).
+
 #### How a prompt becomes a model
 
 Scoring is done by Pinball, not Convergence; the rules live in the [Pinball README](https://github.com/jeefy/pinball#choosing-a-tier) (signal table and points, thresholds, header overrides) and the [optimizer section](https://github.com/jeefy/pinball#nightly-optimizer). In short: the score is the best-scoring user message plus request signals (code fences, heavy keywords such as `refactor` or `root cause`, length, `tools` present, reasoning effort, small `max_tokens`). Convergence renders thresholds `standard: 1` and `heavy: 3`, so a score below 1 is `light`, 3 or more is `heavy`, anything between is `standard`. Clients opt in by sending `model: auto` (or `pinball`). The gateway forwards `x-pinball-tier` (force a tier) and `x-pinball-min-tier` (raise to at least that tier) to Pinball; see the Pinball README for exact semantics. If Pinball doesn't answer, the request goes to the standard-tier model.

@@ -123,7 +123,7 @@ EOF
 
   TOKEN="ghp_$(python3 -c 'import secrets,string;print("".join(secrets.choice(string.ascii_letters+string.digits) for _ in range(36)))')"
   chat() {
-    curl -s -o /tmp/chat.out -w '%{http_code}' -X POST http://localhost:13000/v1/chat/completions \
+    curl -s -D /tmp/chat.hdr -o /tmp/chat.out -w '%{http_code}' -X POST http://localhost:13000/v1/chat/completions \
       -H 'Content-Type: application/json' \
       -d "{\"model\":\"auto\",\"messages\":[{\"role\":\"user\",\"content\":\"my token is ${TOKEN} please echo\"}]}" || true
   }
@@ -164,6 +164,9 @@ EOF
     done
     echo "${total}"
   }
+  echo "(b2) response carries Pinball's pick as headers"
+  grep -qi '^x-pinball-model: .\+' /tmp/chat.hdr || { echo "ERROR: x-pinball-model header missing" >&2; cat /tmp/chat.hdr >&2; exit 1; }
+  grep -i '^x-pinball-' /tmp/chat.hdr
   echo "(c) stand-in metrics"
   M="$(sum_metric stand-in 9102 standin_matches_total)"; R="$(sum_metric stand-in 9102 standin_restored_total)"
   echo "matches=${M} restored=${R}"

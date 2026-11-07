@@ -277,3 +277,12 @@ func TestCustomImageOverrides(t *testing.T) {
 		}
 	}
 }
+
+func TestAgentgatewayExposesPinballPickAsResponseHeaders(t *testing.T) {
+	_, files := render(t, func(c *config.Config) { c.Provider = config.ProviderCopilot })
+	for _, h := range []string{"x-pinball-model", "x-pinball-tier", "x-pinball-reason"} {
+		if !strings.Contains(files["agentgateway.yaml"], h+`: 'default(extauthz.`) {
+			t.Errorf("agentgateway config missing response header %s", h)
+		}
+	}
+}

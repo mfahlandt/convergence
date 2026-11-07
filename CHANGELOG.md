@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- agentgateway now returns Pinball's pick on every `auto`/`pinball` response as headers `x-pinball-model`, `x-pinball-tier` and `x-pinball-reason` (a `transformations.response` policy reading ext_authz metadata; local and cluster). The body's `model` still names the real upstream model, so clients that compare it to the requested `auto` can read the header instead of reporting a route change.
+
 ## [0.1.4] - 2026-11-06
 
 ### Changed

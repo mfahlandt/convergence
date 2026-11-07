@@ -64,6 +64,14 @@ stringData:
       policies:
         timeout:
           responseIdleTimeout: 120s
+        transformations:
+          response:
+            set:
+              # Surface Pinball's pick to clients: with model=auto the body says the real model, which
+              # clients report as a "route change". Absent when Pinball did not run (explicit model).
+              x-pinball-model: 'default(extauthz.model, "")'
+              x-pinball-tier: 'default(extauthz.tier, "")'
+              x-pinball-reason: 'default(extauthz.reason, "")'
         extAuthz:
           conditional:
             - condition: 'request.method == "POST" && json(request.body).model in ["auto", "pinball"]'
