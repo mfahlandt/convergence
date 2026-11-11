@@ -254,7 +254,9 @@ Worked examples, using the point values in the Pinball README (they may change w
 | `optimize --db-dsn DSN [--dry-run]` | **Experimental.** Run a Pinball evaluation and within-tier re-ranking against a Pinball history database. |
 | `sandbox list` | List supported sandboxing runtimes. |
 | `sandbox status [--json]` | Show status and reachability of the configured sandboxing runtime. |
-| `sandbox run [-v/--mount path] <agent> [args...]` | Run an agent inside the configured sandbox runtime with inference routed to Convergence. |
+| `sandbox run [-v/--mount path] <agent> [args...]` | Run an agent inside the configured sandbox runtime with inference routed to Convergence. Can vet installed skills first (opt-in); see [Skill scanning](#skill-scanning). |
+| `skills build` | Build the pinned SkillSpector scanner image. |
+| `skills scan [path...] [--llm] [--model M] [--build] [--no-save]` | Scan installed agent skills (or the given paths) with SkillSpector; exits 1 when one is `DO_NOT_INSTALL`. |
 | `upgrade` | Pull the image versions pinned by this binary and recreate the stack. |
 | `uninstall [--purge] [--yes]` | Stop and remove the stack. `--purge` also deletes `~/.convergence`. |
 | `version` | Version, commit, build date. |
@@ -262,6 +264,30 @@ Worked examples, using the point values in the Pinball README (they may change w
 `--extproc-timeout` (config: `extproc_timeout`, default `5s`) sets agentgateway's `requestTimeout` for the ext_proc policy: the time it waits for the first gRPC response headers from the ext_proc server (see agentgateway#4146). Raise it for very large requests. Must be a positive Go duration (e.g. `60s`).
 
 `cluster install --standin-cpu-request` / `--standin-cpu-limit` (default `50m` / `500m`) set Stand-In's CPU. Stand-In is CPU-bound on large bodies; if ext_proc times out under load, raise the limit (e.g. `--standin-cpu-limit 4`) before raising `--extproc-timeout`.
+
+## Skill scanning
+
+Agent skills run with the agent's trust. `convergence skills scan` vets them with [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector) (prompt injection, data exfiltration, supply chain and more) in a container, so the host needs no Python. NVIDIA publishes no image: build the pinned one once.
+
+```bash
+convergence skills build      # builds localhost/convergence-skillspector:v2.13.4 from a pinned commit
+convergence skills scan       # ~/.claude/skills, ~/.config/opencode/skills, ~/.agents/skills, ~/.hermes/skills
+convergence skills scan ./some-skill
+```
+
+Each skill gets a score, a severity and a verdict (`SAFE`, `CAUTION`, `DO_NOT_INSTALL`). The command exits 1 when a skill is `DO_NOT_INSTALL`. The static scan runs with `--network=none` and takes seconds.
+
+`--llm` adds SkillSpector's semantic analysis through this gateway (one to two minutes per skill). The model must honor forced tool calls, so `auto` does not work: set `skill_scan_model` in `config.yaml` or pass `--model`. If the model ignores them, the analysis is incomplete and the command says so and exits 1.
+
+Scanning is opt-in. To have `sandbox run` check installed skills before it starts the agent, set `skill_scan` in `config.yaml`:
+
+| `skill_scan` | Unsafe skill | Scanner missing |
+|---|---|---|
+| `off` (default) | no check | no check |
+| `warn` | warning, the agent starts | warning, the agent starts |
+| `block` | refuses to start | refuses to start |
+
+It reuses the last static scan (`~/.convergence/skill-scan.json`) and rescans only when the installed skills changed. `doctor` reports the cached result.
 
 ## Status and doctor
 
@@ -279,6 +305,7 @@ Worked examples, using the point values in the Pinball README (they may change w
 | pinball `/check` | probe prompts get a tier and model back from Pinball |
 | provider reachability | the upstream (copilot-api, Ollama, ...) answers |
 | stand-in fail mode | warns if fail-open is configured or rendered |
+| skills | result of the last `skills scan` of installed skills: warns when never scanned, changed since, or unsafe (fails on unsafe with `skill_scan: block`); info while `skill_scan` is off |
 
 `--e2e` additionally sends one real request (model `auto`, `max_tokens: 16`) containing a fake GitHub token through the gateway. With a real provider this may cost a few tokens, so it's off by default.
 

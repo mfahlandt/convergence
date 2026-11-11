@@ -134,3 +134,18 @@ func TestValidateExtProcTimeout(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSkillScan(t *testing.T) {
+	for _, m := range []SkillScanMode{"", SkillScanWarn, SkillScanBlock, SkillScanOff} {
+		c := &Config{SkillScan: m}
+		if err := c.ValidateSkillScan(); err != nil {
+			t.Errorf("%q: %v", m, err)
+		}
+	}
+	if (&Config{}).SkillScanOrDefault() != SkillScanOff {
+		t.Error("default must be warn")
+	}
+	if err := (&Config{SkillScan: "strict"}).ValidateSkillScan(); err == nil {
+		t.Error("unknown mode must fail")
+	}
+}

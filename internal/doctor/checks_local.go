@@ -12,6 +12,7 @@ import (
 
 	"github.com/jeefy/convergence/internal/config"
 	"github.com/jeefy/convergence/internal/engine"
+	"github.com/jeefy/convergence/internal/skillscan"
 )
 
 // CheckConfig verifies config.yaml exists and parses and that .env is 0600.
@@ -183,4 +184,43 @@ func CheckFailMode(e *Env) Result {
 	default:
 		return Result{name, Pass, "fail-closed: requests are blocked when Stand-In is unavailable", ""}
 	}
+}
+
+// CheckSkills reports the cached SkillSpector verdict on installed skills. It
+// never runs a scan: that takes a container start per call.
+func CheckSkills(e *Env) Result {
+	const name = "skills"
+	hint := "run 'convergence skills scan'"
+	if e.Cfg.SkillScanOrDefault() == config.SkillScanOff {
+		return Result{name, Info, "skill_scan: off (sandbox run does not vet installed skills)", ""}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return Result{name, Warn, err.Error(), ""}
+	}
+	dirs := skillscan.Discover(home)
+	if len(dirs) == 0 {
+		return Result{name, Info, "no installed skills found", ""}
+	}
+	rep, err := skillscan.Load(filepath.Join(e.Dir, skillscan.LastScanFile))
+	switch {
+	case err != nil:
+		return Result{name, Warn, err.Error(), hint}
+	case rep == nil:
+		return Result{name, Warn, fmt.Sprintf("%d installed skill(s) never scanned", len(dirs)), hint}
+	case rep.Fingerprint != skillscan.Fingerprint(dirs):
+		return Result{name, Warn, fmt.Sprintf("installed skills changed since the scan of %s", rep.ScannedAt.Format("2006-01-02 15:04")), hint}
+	}
+	if bad := rep.Unsafe(); len(bad) > 0 {
+		names := make([]string, len(bad))
+		for i, s := range bad {
+			names[i] = s.Name
+		}
+		st := Warn
+		if e.Cfg.SkillScanOrDefault() == config.SkillScanBlock {
+			st = Fail
+		}
+		return Result{name, st, "DO_NOT_INSTALL: " + strings.Join(names, ", "), "review or remove them; details: convergence skills scan"}
+	}
+	return Result{name, Pass, fmt.Sprintf("%d skill(s) scanned, none DO_NOT_INSTALL", len(rep.Skills)), ""}
 }

@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- `convergence skills scan` and `skills build`: vet agent skills with NVIDIA SkillSpector (pinned v2.13.4) in a container. Static by default (`--network=none`); `--llm` adds semantic analysis through the gateway with a model that honors forced tool calls (`skill_scan_model`).
+- Opt-in: `sandbox run` checks installed skills first with `skill_scan: warn` or `block` (default `off`), reusing the cached scan until the skills change. `doctor` reports the cached result.
 - `insights` reports total cost, cost per tier (with an "N of M rows priced" coverage line) and estimated savings versus a reference model (`--reference-model`, default: the heavy-tier model), also in `--json`. Prices are pinball's optimizer catalog estimates, not invoices.
 - `convergence doctor` warns when a model that `models.yaml` maps to Ollama is not installed on the configured endpoint. README documents mapping the light tier to a local Ollama model.
 - `cluster install --request-log-retention DUR` renders a daily CronJob that deletes request-log rows older than DUR in batches (off by default, minimum 24h, the optimizer's sampling window).

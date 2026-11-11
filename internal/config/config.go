@@ -105,11 +105,45 @@ type Config struct {
 	ImagePinball          string `yaml:"image_pinball,omitempty"`
 	ImageCopilotAPI       string `yaml:"image_copilot_api,omitempty"`
 	ImageOpenShellGateway string `yaml:"image_openshell_gateway,omitempty"`
+	ImageSkillSpector     string `yaml:"image_skillspector,omitempty"`
+
+	// SkillScan gates `sandbox run` on a SkillSpector scan of installed skills:
+	// "off" (default, opt-in), "warn" or "block". SkillScanModel is the gateway model
+	// for `skills scan --llm`; it must honor forced tool calls.
+	SkillScan      SkillScanMode `yaml:"skill_scan,omitempty"`
+	SkillScanModel string        `yaml:"skill_scan_model,omitempty"`
 
 	// ExtProcTimeout is agentgateway's requestTimeout for the ext_proc
 	// (stand-in) policy: how long it waits for the first gRPC response headers.
 	// Go duration, > 0. Empty = DefaultExtProcTimeout.
 	ExtProcTimeout string `yaml:"extproc_timeout,omitempty"`
+}
+
+// SkillScanMode is how `sandbox run` reacts to unsafe installed skills.
+type SkillScanMode string
+
+const (
+	SkillScanWarn  SkillScanMode = "warn"
+	SkillScanBlock SkillScanMode = "block"
+	SkillScanOff   SkillScanMode = "off"
+)
+
+// SkillScanOrDefault returns the configured mode, or off when unset: the scan
+// needs a locally built image, so users opt in.
+func (c *Config) SkillScanOrDefault() SkillScanMode {
+	if c.SkillScan == "" {
+		return SkillScanOff
+	}
+	return c.SkillScan
+}
+
+// ValidateSkillScan rejects an unknown skill_scan mode.
+func (c *Config) ValidateSkillScan() error {
+	switch c.SkillScanOrDefault() {
+	case SkillScanWarn, SkillScanBlock, SkillScanOff:
+		return nil
+	}
+	return fmt.Errorf("invalid skill_scan %q (want warn, block or off)", c.SkillScan)
 }
 
 // DefaultExtProcTimeout is the ext_proc requestTimeout used when unset.
@@ -299,6 +333,9 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("validating config %s: %w", path, err)
 	}
 	if err := ValidateExtProcTimeout(cfg.ExtProcTimeout); err != nil {
+		return nil, fmt.Errorf("validating config %s: %w", path, err)
+	}
+	if err := cfg.ValidateSkillScan(); err != nil {
 		return nil, fmt.Errorf("validating config %s: %w", path, err)
 	}
 	if cfg.StandinSalt == "" {

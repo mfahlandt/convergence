@@ -98,6 +98,10 @@ var sandboxRunCmd = &cobra.Command{
 			return fmt.Errorf("no sandbox runtime configured; configure with 'convergence init --sandbox nono' (or openshell)")
 		}
 
+		if err := preflightSkills(cmd.Context(), cfg, cmd.ErrOrStderr()); err != nil {
+			return err
+		}
+
 		agent := args[0]
 		agentArgs := args[1:]
 

@@ -15,7 +15,7 @@ func Run(ctx context.Context, e *Env, o Options) []Result {
 	rs = append(rs, CheckPinball(ctx, e)...)
 	rs = append(rs, CheckProvider(ctx, e))
 	rs = append(rs, CheckOllamaModels(ctx, e)...)
-	rs = append(rs, CheckFailMode(e))
+	rs = append(rs, CheckFailMode(e), CheckSkills(e))
 	if o.E2E {
 		rs = append(rs, CheckE2E(ctx, e))
 	}
