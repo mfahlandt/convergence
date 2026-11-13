@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jeefy/convergence/internal/clientconfig"
 )
 
 const (
@@ -36,13 +38,24 @@ const (
 )
 
 // skillRoots are the global skill dirs of the agents Convergence configures.
-var skillRoots = []string{".claude/skills", ".config/opencode/skills", ".agents/skills", ".hermes/skills"}
+// Hermes is resolved separately: its home follows HERMES_HOME (see Roots).
+var skillRoots = []string{".claude/skills", ".config/opencode/skills", ".agents/skills"}
 
-// Discover lists every installed skill dir under the known roots in home.
+// Roots returns the skill roots scanned by default for home, matching where
+// `config <client>` writes each agent's config.
+func Roots(home string) []string {
+	out := make([]string, 0, len(skillRoots)+1)
+	for _, r := range skillRoots {
+		out = append(out, filepath.Join(home, r))
+	}
+	return append(out, filepath.Join(clientconfig.HermesHome(home), "skills"))
+}
+
+// Discover lists every installed skill dir under Roots(home).
 func Discover(home string) []string {
 	var out []string
-	for _, r := range skillRoots {
-		out = append(out, SkillDirs(filepath.Join(home, r))...)
+	for _, r := range Roots(home) {
+		out = append(out, SkillDirs(r)...)
 	}
 	return out
 }
@@ -181,7 +194,7 @@ func (s *Scanner) RunArgs(dirs []string, llm *LLM, volSuffix string) []string {
 		args = append(args, "--add-host=host.docker.internal:host-gateway")
 	}
 	for i, d := range dirs {
-		args = append(args, "-v", fmt.Sprintf("%s:/scan/%03d-%s:ro%s", d, i, filepath.Base(d), volSuffix))
+		args = append(args, "-v", fmt.Sprintf("%s:/scan/%03d-%s:ro%s", d, i, mountName(filepath.Base(d)), volSuffix))
 	}
 	if llm != nil {
 		args = append(args,
@@ -197,6 +210,18 @@ func (s *Scanner) RunArgs(dirs []string, llm *LLM, volSuffix string) []string {
 		args = append(args, "--no-llm")
 	}
 	return args
+}
+
+// mountName keeps a skill dir name usable inside a -v spec, where ':' and
+// non-portable characters would break parsing.
+func mountName(base string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			return r
+		}
+		return '_'
+	}, base)
 }
 
 // Scan scans dirs. SkillSpector exits 1 on findings, which is not an error.

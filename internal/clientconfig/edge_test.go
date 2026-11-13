@@ -491,7 +491,7 @@ func TestHermesHomeWindowsDefault(t *testing.T) {
 	t.Setenv("USERPROFILE", t.TempDir())
 	t.Setenv("HERMES_HOME", "")
 	t.Setenv("LOCALAPPDATA", d)
-	if got, want := hermesHome("unused"), filepath.Join(d, "hermes"); got != want {
-		t.Errorf("hermesHome = %s, want %s", got, want)
+	if got, want := HermesHome("unused"), filepath.Join(d, "hermes"); got != want {
+		t.Errorf("HermesHome = %s, want %s", got, want)
 	}
 }

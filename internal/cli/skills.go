@@ -33,7 +33,7 @@ and other risks with NVIDIA SkillSpector, run in a container.
 
 Without paths, scans the global skill dirs of the agents Convergence
 configures: ~/.claude/skills, ~/.config/opencode/skills, ~/.agents/skills
-and ~/.hermes/skills.
+and <hermes home>/skills ($HERMES_HOME, else ~/.hermes).
 
 The static scan runs with no network. --llm adds SkillSpector's semantic
 analysis through this Convergence gateway (1-2 minutes per skill).`,

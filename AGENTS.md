@@ -35,6 +35,8 @@ Run `make lint` and `go test -race ./...` before declaring work done. Never comm
 
 ## Testing notes
 
+- **Every engine-driving change needs real e2e coverage.** A new subcommand, flag or config key that talks to docker/podman, the compose stack or a cluster must be exercised in `tests/test_e2e_local.sh` (CI runs it on Docker, Podman+docker-compose and Podman+podman-compose) or `tests/test_e2e_cluster.sh`, with assertions on exit codes and output. Unit tests with a fake engine do not count. Run the script locally before pushing; "tested on my machine with podman" in a PR description is not coverage.
+
 - e2e scripts use fixed host ports (3000, 9102, 9201, 15020). Check `podman ps -a` / `docker ps` for leftovers and do not run two e2e runs at once.
 - Rootless podman: bind mounts need `:ro,z` on Linux; `podman compose` delegates to docker-compose and needs the podman API socket (the e2e script starts one).
 - Unit tests must not touch the network or a real container engine: use a fake engine script on `PATH`, `t.Setenv("HOME", t.TempDir())` and `httptest`.

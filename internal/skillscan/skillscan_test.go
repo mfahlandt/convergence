@@ -22,6 +22,7 @@ func mkSkill(t *testing.T, dir string) string {
 }
 
 func TestDiscover(t *testing.T) {
+	t.Setenv("HERMES_HOME", "")
 	home := t.TempDir()
 	a := mkSkill(t, filepath.Join(home, ".claude/skills/a"))
 	b := mkSkill(t, filepath.Join(home, ".hermes/skills/dev/b")) // Hermes category dir
@@ -118,4 +119,29 @@ func TestSaveLoad(t *testing.T) {
 	if err != nil || out.Fingerprint != "f" || len(out.Unsafe()) != 1 {
 		t.Fatalf("roundtrip: %+v %v", out, err)
 	}
+}
+
+func TestDiscoverHonorsHermesHome(t *testing.T) {
+	home, hermes := t.TempDir(), t.TempDir()
+	t.Setenv("HERMES_HOME", hermes)
+	ignored := mkSkill(t, filepath.Join(home, ".hermes/skills/old"))
+	want := mkSkill(t, filepath.Join(hermes, "skills/cat/new"))
+	got := Discover(home)
+	if !slices.Equal(got, []string{want}) {
+		t.Errorf("Discover = %v, want [%s] (and not %s)", got, want, ignored)
+	}
+}
+
+func TestRunArgsSanitizesMountName(t *testing.T) {
+	s := New("docker", "")
+	args := s.RunArgs([]string{"/tmp/we:ird skill"}, nil, "")
+	for _, a := range args {
+		if strings.HasPrefix(a, "/tmp/we:ird skill:") {
+			if !strings.Contains(a, ":/scan/000-we_ird_skill:ro") {
+				t.Errorf("mount spec not sanitized: %q", a)
+			}
+			return
+		}
+	}
+	t.Fatalf("no mount for the skill dir in %v", args)
 }

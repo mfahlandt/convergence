@@ -10,6 +10,8 @@ BIN="${ROOT_DIR}/bin/convergence"
 STUB_PY="${SCRIPT_DIR}/stub-upstream/stub.py"
 STUB_IMAGE="${STUB_IMAGE:-docker.io/library/python:3.12-alpine}"
 AGW_IMAGE="cr.agentgateway.dev/agentgateway:v1.6.0"
+SKILLSPECTOR_IMAGE="localhost/convergence-skillspector:v2.13.4"   # DefaultImage in internal/skillscan
+SKILLSPECTOR_COMMIT="54824463814a0be01360792523ec7245a69190fc"    # SourceCommit in internal/skillscan
 GW=3000; STANDIN=9102; PINBALL=9201; STATS=15020   # fixed by the compose template
 
 [ -x "$BIN" ] || { echo "Building convergence binary..."; (cd "$ROOT_DIR" && make build); }
@@ -66,6 +68,18 @@ free_port() { python3 -c 'import socket;s=socket.socket();s.bind(("",0));print(s
 
 metric() { # metric <port> <name> -> sum of all non-bucket series
   curl -sf "http://127.0.0.1:$1/metrics" | awk -v n="$2" '$0 !~ /^#/ { split($1,a,"{"); if (a[1]==n) s+=$NF } END{printf "%d", s+0}'
+}
+
+# out_of <convergence args...>: combined output regardless of exit code, for asserting on failures
+out_of() { "$BIN" "$@" 2>&1 || true; }
+
+fetch_skillspector_fixtures() { # copy SkillSpector's own malicious_skill and safe_skill fixtures into $1
+  local d; d="$(mktemp -d)"
+  git -C "$d" init -q
+  git -C "$d" fetch -q --depth 1 https://github.com/NVIDIA/skillspector.git "$SKILLSPECTOR_COMMIT"
+  git -C "$d" checkout -q FETCH_HEAD -- tests/fixtures/malicious_skill tests/fixtures/safe_skill
+  cp -r "$d/tests/fixtures/malicious_skill" "$d/tests/fixtures/safe_skill" "$1/"
+  rm -rf "$d"
 }
 
 wait_for() { # wait_for <desc> <tries> <cmd...>
@@ -235,6 +249,44 @@ print(out)')"
   bin_has "claude-code" config list || fail "config list missing claude-code"
   "$BIN" config claude-code restore >/dev/null
   if [ -e "$cc" ]; then grep -q "localhost\|127.0.0.1" "$cc" && fail "restore left the Convergence keys"; fi
+
+  echo "==> skills: scan needs the image, build it, scan upstream fixtures"
+  local skills="$TEST_HOME/.claude/skills" scan_out
+  mkdir -p "$skills"
+  fetch_skillspector_fixtures "$skills"
+  "$engine" image rm -f "$SKILLSPECTOR_IMAGE" >/dev/null 2>&1 || true
+  scan_out="$(out_of skills scan)"
+  echo "$scan_out" | grep -q "skills build" || fail "skills scan without image lacks the build hint: $scan_out"
+  "$BIN" skills build >/dev/null
+  "$engine" image inspect "$SKILLSPECTOR_IMAGE" >/dev/null || fail "skills build left no image"
+  scan_out="$("$BIN" skills scan 2>&1)" && fail "skills scan must exit 1 with a DO_NOT_INSTALL skill"
+  echo "$scan_out"
+  echo "$scan_out" | grep -q "DO_NOT_INSTALL" || fail "malicious fixture not flagged"
+  echo "$scan_out" | grep -qE "safe-greeting.*SAFE" || fail "safe fixture not SAFE"
+  echo "$scan_out" | grep -q "WARNING: analysis incomplete" && fail "static scan reported incomplete"
+  [ "$(stat -c %a "$cfgdir/skill-scan.json")" = 600 ] || fail "skill-scan.json is not 0600"
+  python3 -c 'import sys,json; d=json.load(open(sys.argv[1])); assert d["complete"] and len(d["skills"])==2, d' "$cfgdir/skill-scan.json"
+  "$BIN" skills scan "$skills/safe_skill" >/dev/null || fail "scanning only the safe fixture must exit 0"
+
+  echo "==> skills: sandbox run and doctor honor skill_scan warn/block from the cached scan"
+  sed -i '/^skill_scan:/d;/^sandbox:/d' "$cfgdir/config.yaml"
+  printf 'sandbox: nono\nskill_scan: block\n' >> "$cfgdir/config.yaml"
+  scan_out="$("$BIN" sandbox run true 2>&1)" && fail "sandbox run must refuse with skill_scan: block"
+  echo "$scan_out" | grep -q "DO_NOT_INSTALL" || fail "sandbox run block message lacks the verdict: $scan_out"
+  "$BIN" doctor >/dev/null 2>&1 && fail "doctor must fail on an unsafe skill with skill_scan: block"
+  out_of doctor | grep -q "FAIL skills" || fail "doctor missing FAIL skills"
+  sed -i 's/^skill_scan:.*/skill_scan: warn/' "$cfgdir/config.yaml"
+  out_of doctor | grep -q "WARN skills" || fail "doctor missing WARN skills in warn mode"
+  rm -rf "$skills/malicious_skill"
+  out_of doctor | grep -q "changed since" || fail "doctor did not notice the skills changed"
+  scan_out="$(out_of sandbox run true)"
+  echo "$scan_out" | grep -q "Installed skills changed; scanning" || fail "sandbox run did not rescan changed skills: $scan_out"
+  echo "$scan_out" | grep -q "DO_NOT_INSTALL" && fail "rescan still flags a removed skill: $scan_out"
+  out_of doctor | grep -q "PASS skills" || fail "doctor missing PASS skills after rescan"
+  sed -i 's/^skill_scan:.*/skill_scan: bogus/' "$cfgdir/config.yaml"
+  out_of doctor | grep -q "invalid skill_scan" || fail "invalid skill_scan not rejected"
+  sed -i '/^skill_scan:/d;/^sandbox:/d' "$cfgdir/config.yaml"
+  rm -rf "$skills"
 
   echo "==> restart keeps the stack serving"
   "$BIN" restart

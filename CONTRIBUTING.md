@@ -54,15 +54,16 @@ docs/                   architecture notes
 Image tags appear in several places. Change all of them in one PR:
 
 ```bash
-grep -rn 'agentgateway:v\|stand-in:\|pinball:\|copilot-api:v' --include='*.go' --include='*.tmpl' --include='*.sh' --include='*.md' .
+grep -rn 'agentgateway:v\|stand-in:\|pinball:\|copilot-api:v\|skillspector' --include='*.go' --include='*.tmpl' --include='*.sh' --include='*.md' .
 ```
 
-That covers `internal/templates/render.go`, `internal/k8s/assets/manifests.yaml.tmpl`, `internal/cli/optimize.go`, `tests/`, `README.md` and `docs/architecture.md`. Read the upstream changelog (agentgateway config schema changes are the usual breakage), run `make test-e2e` and `make test-e2e-cluster`, and note the bump in `CHANGELOG.md`.
+That covers `internal/templates/render.go`, `internal/k8s/assets/manifests.yaml.tmpl`, `internal/cli/optimize.go`, `tests/`, `README.md` and `docs/architecture.md`. SkillSpector is built from source, so its pin is a commit SHA plus tag (`SourceCommit`/`DefaultImage` in `internal/skillscan/skillscan.go`, mirrored in `tests/test_e2e_local.sh` and `README.md`). Read the upstream changelog (agentgateway config schema changes are the usual breakage), run `make test-e2e` and `make test-e2e-cluster`, and note the bump in `CHANGELOG.md`.
 
 ## Pull requests
 
 - Keep changes focused; one topic per PR.
 - `make test` and `make lint` must pass.
+- Anything that drives a container engine or the stack (new subcommand, flag, config key) needs coverage in `tests/test_e2e_local.sh` (runs in CI on Docker and both Podman compose providers) or `tests/test_e2e_cluster.sh`. Unit tests with a fake engine are not a substitute.
 - Don't commit secrets or real tokens in tests or fixtures.
 
 ## Releases

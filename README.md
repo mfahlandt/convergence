@@ -271,7 +271,7 @@ Agent skills run with the agent's trust. `convergence skills scan` vets them wit
 
 ```bash
 convergence skills build      # builds localhost/convergence-skillspector:v2.13.4 from a pinned commit
-convergence skills scan       # ~/.claude/skills, ~/.config/opencode/skills, ~/.agents/skills, ~/.hermes/skills
+convergence skills scan       # ~/.claude/skills, ~/.config/opencode/skills, ~/.agents/skills, <hermes home>/skills
 convergence skills scan ./some-skill
 ```
 
